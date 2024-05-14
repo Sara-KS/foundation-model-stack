@@ -80,6 +80,13 @@ parser.add_argument(
     help="This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
 )
 parser.add_argument("--context_file", type=str, default=None, help="File to summarize")
+parser.add_argument(
+    "--attn_algorithm",
+    type=str,
+    default=None,
+    choices=['flash', 'flashv2', 'mem', 'math', 'triton'],
+    help="Choose fused attention type",
+)
 
 args = parser.parse_args()
 

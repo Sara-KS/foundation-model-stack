@@ -14,6 +14,13 @@ from fms.distributed.tensorparallel import (
 from fms.modules.positions import PositionEncoder
 from fms.modules.tp import TPModule
 
+#To Do: need a different toggle for importing options
+#SaraKS: Add testing options
+AMD_FA2 = False #To Do
+AMD_TRITON = True
+if AMD_TRITON:
+    from.triton.flash_attention import attention as triton_attn
+    from.triton.flash_attention import MetaData
 
 class MultiHeadAttention(nn.Module):
     """
@@ -197,29 +204,53 @@ class MultiHeadAttention(nn.Module):
             keys_e = keys
             values_e = values
 
-        if attn_algorithm:
-            # Pick which fused attn kernels will run.
-            use_flash = attn_algorithm == "flash"
-            use_mem_efficient = attn_algorithm == "mem"
-            use_math = attn_algorithm == "math"
+        if attn_algorithm =="triton":
+            sm_scale = self.emb_kq_per_head ** -0.5
+            input_metadata = MetaData(sm_scale=sm_scale)
+            input_metadata.max_seqlens_k = keys_e.shape[2]
+            input_metadata.max_seqlens_q = quesies.shape[2]
+            if is_causal_mask:
+                input_metadata.need_causal()
+            attn, _ = triton_attn(queries,
+                        keys_e,
+                        values_e,
+                        None,
+                        input_metadata
+            )            
+        elif attn_algorithm == "flashv2":
+            if torch.version.hip:
+                print("TO DO: include ROCm flash-attention v2")
+                attn = None #To Do
+            elif torch.version.cuda:
+                print("TO DO: check if Tri Dao's implementation is already supported")
+                attn = None #To Do
+            else:
+                print("Error - flashv2 attention algorithm requires GPUs. Neither CUDA nor HIP was detected by PyTorch.version.[cuda,hip]")
+                exit()
+        else: 
+            if attn_algorithm:
+                # Pick which fused attn kernels will run.
+                use_flash = attn_algorithm == "flash"
+                use_mem_efficient = attn_algorithm == "mem"
+                use_math = attn_algorithm == "math"
 
-            torch.backends.cuda.enable_flash_sdp(use_flash)
-            torch.backends.cuda.enable_mem_efficient_sdp(use_mem_efficient)
-            torch.backends.cuda.enable_math_sdp(use_math)
+                torch.backends.cuda.enable_flash_sdp(use_flash)
+                torch.backends.cuda.enable_mem_efficient_sdp(use_mem_efficient)
+                torch.backends.cuda.enable_math_sdp(use_math)
 
-        attn = F.scaled_dot_product_attention(
-            queries,
-            keys_e,
-            values_e,
-            attn_mask=attn_mask,
-            dropout_p=self.p_dropout if self.training else 0.0,
-            is_causal=is_causal_mask,
-        )
+            attn = F.scaled_dot_product_attention(
+                queries,
+                keys_e,
+                values_e,
+                attn_mask=attn_mask,
+                dropout_p=self.p_dropout if self.training else 0.0,
+                is_causal=is_causal_mask,
+            )
 
-        if attn_algorithm:
-            torch.backends.cuda.enable_flash_sdp(self.previous_flash)
-            torch.backends.cuda.enable_mem_efficient_sdp(self.previous_mem_efficient)
-            torch.backends.cuda.enable_math_sdp(self.previous_math)
+            if attn_algorithm:
+                torch.backends.cuda.enable_flash_sdp(self.previous_flash)
+                torch.backends.cuda.enable_mem_efficient_sdp(self.previous_mem_efficient)
+                torch.backends.cuda.enable_math_sdp(self.previous_math)
 
         # attn: bs x seq_len x nheads*emb_v_per_head
         # attn: b x h x qlen x ds
