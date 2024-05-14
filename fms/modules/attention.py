@@ -19,8 +19,8 @@ from fms.modules.tp import TPModule
 AMD_FA2 = False #To Do
 AMD_TRITON = True
 if AMD_TRITON:
-    from.triton.flash_attention import attention as triton_attn
-    from.triton.flash_attention import MetaData
+    from fms.triton.flash_attention import attention as triton_attn
+    from fms.triton.flash_attention import MetaData
 
 class MultiHeadAttention(nn.Module):
     """
