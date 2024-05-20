@@ -225,6 +225,7 @@ def infer(use_cache, do_sample):
         use_cache=use_cache,
         do_sample=do_sample,
         max_seq_len=max_seq_len,
+        attn_algorithm=args.attn_algorithm,
     )
     for i in range(result.shape[0]):
         print_result(result[i])
