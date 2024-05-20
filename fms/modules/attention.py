@@ -372,7 +372,7 @@ class MultiHeadAttention(nn.Module):
             sm_scale = self.emb_kq_per_head ** -0.5
             input_metadata = MetaData(sm_scale=sm_scale)
             input_metadata.max_seqlens_k = keys_e.shape[2]
-            input_metadata.max_seqlens_q = quesies.shape[2]
+            input_metadata.max_seqlens_q = queries.shape[2]
             if is_causal_mask:
                 input_metadata.need_causal()
             attn, _ = triton_attn(queries,
