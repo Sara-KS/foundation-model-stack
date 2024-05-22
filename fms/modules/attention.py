@@ -17,11 +17,15 @@ from fms.modules.tp import TPModule
 
 #To Do: need a different toggle for importing options
 #SaraKS: Add testing options
-AMD_FA2 = False #To Do
-AMD_TRITON = True
+AMD_FA2 = True #To Do
+AMD_TRITON = False
 if AMD_TRITON:
     from fms.triton.flash_attention import attention as triton_attn
     from fms.triton.flash_attention import MetaData
+
+if AMD_FA2:
+    import flash_attn
+    from flash_attn import flash_attn_qkvpacked_func, flash_attn_func
 
 class QKV(nn.Module, metaclass=abc.ABCMeta):
     """Simple module for applying qkv in attention"""
@@ -382,14 +386,15 @@ class MultiHeadAttention(nn.Module):
                         input_metadata
             )            
         elif attn_algorithm == "flashv2":
-            if torch.version.hip:
-                print("TO DO: include ROCm flash-attention v2")
-                attn = None #To Do
+            if torch.version.hip and not use_cache: #tensor shape with use_cache does not match shape expected by fav2 implementation
+                softmax_scale = self.emb_kq_per_head ** -0.5
+                dropout_p=self.p_dropout if self.training else 0.0
+                attn = flash_attn_func(queries, keys_e, values_e, dropout_p, softmax_scale, is_causal_mask)
             elif torch.version.cuda:
                 print("TO DO: check if Tri Dao's implementation is already supported")
                 attn = None #To Do
             else:
-                print("Error - flashv2 attention algorithm requires GPUs. Neither CUDA nor HIP was detected by PyTorch.version.[cuda,hip]")
+                print("Error - flashv2 attention algorithm requires GPUs and currently does not support use_cache flag.")
                 exit()
         else: 
             if attn_algorithm:
